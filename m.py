@@ -273,6 +273,7 @@ def log_command(user_id, target, port, time):
         file.write(f"Username: {username}\nTarget: {target}\nPort: {port}\nTime: {time}\n\n")
 
 def start_attack_reply(message, target, port, time):
+def start_attack_reply(message, target, port, time):
     user_info = message.from_user
     username = user_info.username if user_info.username else user_info.first_name
     
@@ -287,8 +288,10 @@ def start_attack_reply(message, target, port, time):
 
 🔧 **Support:** For any assistance, contact @NINJA666.
 """
-    bot.reply_to(message, watermark_message, response, parse_mode="Markdown")
+    # Adding watermark to the response
+    response = f"{watermark_message(response)}"
 
+    bot.reply_to(message, response, parse_mode="Markdown")
 @bot.message_handler(commands=['bgmi'])
 def handle_bgmi(message):
     user_id = message.from_user.id
@@ -331,8 +334,8 @@ def handle_bgmi(message):
         response = "Usage: /bgmi <target> <port> <time>"
 
     watermark_message = response
-    bot.reply_to(message, watermark_message)
-
+    bot.reply_to(message, watermark_message
+                 
 @bot.message_handler(commands=['stat'])
 def handle_stat(message):
     if str(message.from_user.id) != ADMIN_ID:

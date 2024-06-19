@@ -504,8 +504,6 @@ def notify_key_expiry():
                 if user_id:
                     bot.send_message(user_id, f"🔔 Your access key `{key}` is about to expire in less than 24 hours. Please renew it soon.")
         time.sleep(3600)  # Check every hour
-        
-
 
 def check_key_expiry():
     while True:
@@ -536,4 +534,5 @@ def main():
             threading.Thread(target=save_state_periodically, daemon=True).start()
             threading.Thread(target=check_key_expiry, daemon=True).start()
             threading.Thread(target=unlock_users, daemon=True).start()
-            threading.Thread(target=notify_key_expiry, daemon=True).start()  # Start the
+            threading.Thread(target=notify_key_expiry, daemon=True).start()
+            bot.pollin

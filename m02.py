@@ -7,6 +7,7 @@ import datetime
 import threading
 import os
 from io import BytesIO
+from telebot import TeleBot, types
 from collections import defaultdict
 import json
 import requests
@@ -34,6 +35,7 @@ free_mode_active = False
 LOG_FILE = "log.txt"
 STATE_FILE = "bot_state.json"
 
+# Save and load state functions
 def save_state():
     state = {
         "user_verified_keys": user_verified_keys,
@@ -66,9 +68,13 @@ def load_state():
         free_mode_active = state.get("free_mode_active", False)
         start_time = state.get("start_time", time.time())
 
-
+# Utility functions
 def watermark_message(message):
     return f"{message}\n\n🔒 Bot made and developed by @NINJA666"
+
+def is_user_locked(user_id):
+    current_time = time.time()
+    return user_id in locked_users and locked_users[user_id] > current_time
 
 @bot.message_handler(commands=['uptime'])
 def handle_uptime(message):
@@ -76,7 +82,6 @@ def handle_uptime(message):
     uptime_hours = uptime_seconds / 3600
     bot.reply_to(message, f"⏱️ *Bot Uptime:* `{uptime_hours:.2f} hours`")
     save_state()
-
 
 @bot.message_handler(commands=['start'])
 def handle_start(message):
@@ -98,6 +103,10 @@ To get started, please follow the steps below:
 /remove_key <key> - Remove an existing key.
 /generate_key - Generate a new access key.
 /active_keys - View all active keys with expiration times.
+/notify_expiry - Notify users about their key expiry statuses.
+/uptime - Check the bot's uptime.
+/stop - Stop the bot.
+/stat - Show bot statistics.
 
 If you have any questions or need assistance, feel free to contact the creator @NINJA666. Enjoy using the bot! 🤖
 """
@@ -109,7 +118,11 @@ To get started, please follow the steps below:
 
 1. **Enter Access Key:**
    Use the command `/enter_key <key>` to verify your access.
-   If you don't have an access key, you can purchase one from @NINJA666.
+   If you don't have an access key, you can purchase one using the commands below:
+
+   - `/purchase_1day` - VIP key for 1 day (💸 Price: ₹ 80)
+   - `/purchase_1week` - VIP key for 1 week (💸 Price: ₹ 300)
+   - `/purchase_1month` - VIP key for 1 month (💸 Price: ₹ 900)
 
 2. **Available Commands:**
    Use the command `/help` to see the list of available commands for users.
@@ -118,45 +131,26 @@ If you have any questions or need assistance, feel free to contact the creator @
 """
     bot.send_message(message.chat.id, welcome_message)
 
-# Global variables
-free_mode_active = False
+@bot.message_handler(commands=['purchase_1day'])
+def handle_purchase_1day(message):
+    send_purchase_message(message, '1 day', 80)
 
-@bot.message_handler(commands=['free'])
-def handle_free(message):
-    global free_mode_active
+@bot.message_handler(commands=['purchase_1week'])
+def handle_purchase_1week(message):
+    send_purchase_message(message, '1 week', 300)
 
-    if str(message.from_user.id) != ADMIN_ID:
-        bot.reply_to(message, "❌ *You Are Not Authorized To Use This Command* ❌")
-        return
+@bot.message_handler(commands=['purchase_1month'])
+def handle_purchase_1month(message):
+    send_purchase_message(message, '1 month', 900)
 
-    command = message.text.split()
-    activation_hours = int(command[1]) if len(command) > 1 else 1  # Default activation for 1 hour
-
-    activation_duration = activation_hours * 3600  # Convert hours to seconds
-
-    free_mode_active = True
-    bot.reply_to(message, f"🔓 Free mode activated for {activation_hours} hours. All users have full access.")
-
-    def deactivate_free_mode():
-        global free_mode_active
-        time.sleep(activation_duration)
-        free_mode_active = False
-        bot.send_message(message.chat.id, "🔒 Free mode deactivated. Access restrictions restored.")
-
-    # Start a thread to deactivate 'free' mode after activation_duration seconds
-    threading.Thread(target=deactivate_free_mode).start()
-
-# Modify your existing message handlers to check if 'free' mode is active
-@bot.message_handler(commands=['generate_key', 'add_key', 'remove_key', 'bgmi'])
-def handle_admin_commands(message):
-    if not free_mode_active and str(message.from_user.id) != ADMIN_ID:
-        bot.reply_to(message, "❌ *Access Denied* ❌")
-        return
-
-    # Rest of the command handling logic remains unchanged...
+def send_purchase_message(message, duration, price):
+    # Extract user details
+    user_id = message.from_user.id
+    user_name = message.from_user.username
+    chat_id = message.chat.id
     
-
-
+    # Construct the message with user details and pricing information
+    user_message_text = f"🌟 Selected plan: {duration} (💸 Price: ₹ {price})\nYour request has been forwarded to @NINJA0666 (@{user_name}). Please wait for further instructions."
 
 @bot.message_handler(commands=['generate_key'])
 def handle_generate_key(message):
@@ -165,8 +159,12 @@ def handle_generate_key(message):
         return
 
     command = message.text.split()
-    num_keys = int(command[1]) if len(command) > 1 else 1
-    expiry_hours = int(command[2]) if len(command) > 2 else 24  # Default expiry of 24 hours
+    try:
+        num_keys = int(command[1]) if len(command) > 1 else 1
+        expiry_hours = int(command[2]) if len(command) > 2 else 24  # Default expiry of 24 hours
+    except ValueError:
+        bot.reply_to(message, "❌ Invalid command usage. Example: `/generate_key 1 24`")
+        return
 
     generated_keys = []
     for _ in range(num_keys):
@@ -192,7 +190,11 @@ def handle_add_key(message):
         return
 
     key = command[1]
-    expiry_hours = int(command[2])
+    try:
+        expiry_hours = int(command[2])
+    except ValueError:
+        bot.reply_to(message, "❌ Invalid expiry hours. Please enter a valid number.")
+        return
 
     if key in user_verified_keys:
         bot.reply_to(message, "❌ *Key already exists.*")
@@ -203,7 +205,7 @@ def handle_add_key(message):
     bot.send_message(message.chat.id, f"🔑 *Key added successfully.*\n*Key:* `{key}`, *Expiry Time:* `{expiry_hours} hours`")
     bot.send_message(OWNER_ID, f"🔑 Added key by bot {message.chat.id}: `{key}` with expiry `{expiry_hours} hours`", parse_mode="Markdown")
     save_state()
-
+   
 @bot.message_handler(commands=['remove_key'])
 def handle_remove_key(message):
     if str(message.from_user.id) != ADMIN_ID:
@@ -222,7 +224,20 @@ def handle_remove_key(message):
         bot.send_message(OWNER_ID, f"🔑 Removed key by bot {message.chat.id}: `{key}`", parse_mode="Markdown")
     else:
         bot.reply_to(message, f"❌ *Key not found.*\n*Key:* `{key}`")
-    save_state()
+    
+    save_state()  # Corrected function call
+
+def is_user_locked(user_id):
+    """
+    Check if a user is locked out due to suspicious activity.
+    
+    :param user_id: Telegram user ID
+    :return: True if the user is locked, False otherwise
+    """
+    current_time = time.time()
+    return user_id in locked_users and locked_users[user_id] > current_time
+    
+
 
 @bot.message_handler(commands=['enter_key'])
 def handle_enter_key(message):
@@ -318,7 +333,7 @@ def handle_help(message):
 
 **User Commands**:
 1. **/enter_key <key>** - Enter an access key to verify.
-2. **/renew_key <new_key>** - Renew your access key.
+2. **/renew_key <new_key>** - (coming soon)Renew your access key.
 3. **/key_status** - Check the status of your access key.
 4. **/uptime** - Check the bot's uptime.
 5. **/help** - Show this help message.
@@ -328,11 +343,10 @@ def handle_help(message):
         help_message = """
 🚀 **VIP Bot Help Menu - User Commands**:
 1. **/enter_key <key>** - Enter an access key to verify.
-2. **/renew_key <new_key>** - Renew your access key.
-3. **/key_status** - Check the status of your access key.
-4. **/uptime** - Check the bot's uptime.
-5. **/help** - Show this help message.
-6. **/bgmi <target> <port> <time>** - Start a BGMI attack (requires key verification).
+2. **/key_status** - Check the status of your access key.
+3. **/uptime** - Check the bot's uptime.
+4. **/help** - Show this help message.
+5. **/bgmi <target> <port> <time>** - Start a BGMI attack (requires key verification).
 """
     bot.reply_to(message, watermark_message(help_message))
 
@@ -491,13 +505,12 @@ def notify_key_expiry():
         upcoming_expiry = current_time + 24 * 3600  # 24 hours ahead
         for key, expiry_time in user_verified_keys.items():
             if expiry_time < upcoming_expiry:
-                # Notify the user associated with the key
-                user_id = next((id for id, keys in user_verified_keys.items() if key in keys), None)
-                if user_id:
-                    bot.send_message(user_id, f"🔔 Your access key `{key}` is about to expire in less than 24 hours. Please renew it soon.")
+                # Find the user ID associated with the key
+                for user_id in user_verified_ids:
+                    if key in user_verified_keys and user_verified_keys[key] > current_time:
+                        bot.send_message(user_id, f"🔔 Your access key `{key}` is about to expire in less than 24 hours. Please renew it soon.")
+                        break  # Exit the loop once notification is sent
         time.sleep(3600)  # Check every hour
-        
-
 
 def check_key_expiry():
     while True:
@@ -528,12 +541,11 @@ def main():
             threading.Thread(target=save_state_periodically, daemon=True).start()
             threading.Thread(target=check_key_expiry, daemon=True).start()
             threading.Thread(target=unlock_users, daemon=True).start()
-            threading.Thread(target=notify_key_expiry, daemon=True).start()  # Start the expiry notification thread
+            threading.Thread(target=notify_key_expiry, daemon=True).start()
             bot.polling()
         except Exception as e:
-            logging.error(f"Error occurred: {e}", exc_info=True)
-            logging.info("Restarting the bot in 10 seconds...")
-            time.sleep(10)  # Wait for 10 seconds before restarting
+            print(f"Error in main loop: {e}")
+            time.sleep(15)  # Pause before restarting the main loop
 
 if __name__ == "__main__":
     main()

@@ -535,4 +535,10 @@ def main():
             threading.Thread(target=check_key_expiry, daemon=True).start()
             threading.Thread(target=unlock_users, daemon=True).start()
             threading.Thread(target=notify_key_expiry, daemon=True).start()
-            bot.pollin
+            bot.polling()
+        except Exception as e:
+            print(f"Error in main loop: {e}")
+            time.sleep(15)  # Pause before restarting the main loop
+
+if __name__ == "__main__":
+    main()
